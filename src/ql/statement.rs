@@ -3,20 +3,26 @@ use regex::{Regex, RegexBuilder};
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct SetName(String);
 
+impl From<String> for SetName {
+    fn from(s: String) -> Self {
+        SetName(s)
+    }
+}
+
 impl Default for SetName {
     fn default() -> Self {
         SetName("_".to_owned())
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct StatementSpec {
-    inputs: Vec<SetName>,
-    statement: Statement,
-    output: SetName,
+    pub inputs: Vec<SetName>,
+    pub statement: Statement,
+    pub output: SetName,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
     Query {
         filters: Vec<Filter>,
@@ -24,7 +30,7 @@ pub enum Statement {
     Recurse,
     IsInArea,
     Union {
-        members: Vec</*Box<*/Statement/*>*/>,
+        members: Vec<StatementSpec>,
     },
     /// Source from a set
     Item,
@@ -43,7 +49,7 @@ pub enum QueryType {
     NWR,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Filter {
     QueryType(QueryType),
     Id(u64),
@@ -76,7 +82,7 @@ pub enum Filter {
 #[derive(Debug, Clone)]
 pub enum TagSpec {
     String(String),
-    Regex(Regex),
+    Regex(String, Regex),
 }
 
 impl TagSpec {
@@ -84,22 +90,37 @@ impl TagSpec {
         TagSpec::String(s.into())
     }
 
-    pub fn from_regex(r: &str, case_insensitive: bool) -> Self {
-        let regex = RegexBuilder::new(r)
+    pub fn from_regex<S: Into<String>>(r: S, case_insensitive: bool) -> Self {
+        let s = r.into();
+        let regex = RegexBuilder::new(&s)
             .case_insensitive(case_insensitive)
             .multi_line(true)
             .ignore_whitespace(true)
             .unicode(true)
             .build().unwrap();
-        TagSpec::Regex(regex)
+        TagSpec::Regex(s, regex)
     }
 
     pub fn test(&self, s: &str) -> bool {
         match self {
-            &TagSpec::Regex(ref r) =>
+            &TagSpec::Regex(_, ref r) =>
                 r.is_match(s),
             &TagSpec::String(ref ss) =>
                 s == ss,
         }
     }
 }
+
+impl PartialEq for TagSpec {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (TagSpec::String(s1), TagSpec::String(s2)) =>
+                s1 == s2,
+            (TagSpec::Regex(s1, _), TagSpec::Regex(s2, _)) =>
+                s1 == s2,
+            _ =>
+                false,
+        }
+    }
+}
+

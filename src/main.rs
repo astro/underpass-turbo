@@ -1,6 +1,5 @@
 extern crate osm_pbf_iter;
 extern crate clap;
-extern crate combine;
 extern crate threadpool;
 extern crate regex;
 

@@ -158,6 +158,9 @@ fn parse_bare_literal(input: &[char], mut position: usize) -> Option<(usize, Str
         result.push(c);
         
         position += 1;
+        if position >= input.len() {
+            break;
+        }
         c = input[position];
     }
 
@@ -225,7 +228,7 @@ mod tests {
     
     #[test]
     fn it_works() {
-        assert_eq!(tokenize("(._; >;);"),
+        assert_eq!(tokenize("(._; >;); out"),
                    vec![Token::ParenthesisOpen,
                         Token::Period,
                         Token::StringLiteral("_".to_owned()),
@@ -233,7 +236,8 @@ mod tests {
                         Token::RecurseDown,
                         Token::Semicolon,
                         Token::ParenthesisClose,
-                        Token::Semicolon
+                        Token::Semicolon,
+                        Token::StringLiteral("out".to_owned()),
                    ]);
     }
 }

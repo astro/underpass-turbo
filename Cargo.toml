@@ -6,6 +6,5 @@ authors = ["Astro <astro@spaceboyz.net>"]
 [dependencies]
 osm_pbf_iter = { path = "../rust-osm-pbf-iter" } # "~0.1.0"
 clap = "2.20.5"
-combine = "3.3.6"
 threadpool = "1.7"
 regex = "1"
