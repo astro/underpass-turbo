@@ -32,6 +32,10 @@ pub enum Statement {
     Union {
         members: Vec<StatementSpec>,
     },
+    Difference {
+        source: Box<StatementSpec>,
+        remove: Box<StatementSpec>,
+    },
     /// Source from a set
     Item,
     Output,

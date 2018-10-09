@@ -23,6 +23,12 @@ StatementSpec: StatementSpec = {
 };
 
 InputAndStatement: (Vec<SetName>, Statement) = {
+    "(" <source: StatementSpec> "-" <remove: StatementSpec> ")" =>
+        (vec![], Statement::Difference {
+            source: Box::new(source),
+            remove: Box::new(remove),
+        }),
+
     "(" <members: (StatementSpec)*> ")" =>
         (vec![], Statement::Union { members }),
 

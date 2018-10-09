@@ -24,6 +24,61 @@ mod tests {
     }
 
     #[test]
+    fn test_union() {
+        assert_eq!(parse("( node; way; relation; );"), vec![StatementSpec {
+            inputs: vec![],
+            statement: Statement::Union { members: vec![
+                StatementSpec {
+                    inputs: vec![],
+                    statement: Statement::Query {
+                        filters: vec![Filter::QueryType(QueryType::Node)],
+                    },
+                    output: SetName::default(),
+                },
+                StatementSpec {
+                    inputs: vec![],
+                    statement: Statement::Query {
+                        filters: vec![Filter::QueryType(QueryType::Way)],
+                    },
+                    output: SetName::default(),
+                },
+                StatementSpec {
+                    inputs: vec![],
+                    statement: Statement::Query {
+                        filters: vec![Filter::QueryType(QueryType::Relation)],
+                    },
+                    output: SetName::default(),
+                },
+            ] },
+            output: SetName::default(),
+        }]);
+    }
+
+    #[test]
+    fn test_difference() {
+        assert_eq!(parse("( node; - way; );"), vec![StatementSpec {
+            inputs: vec![],
+            statement: Statement::Difference {
+                source: Box::new(StatementSpec {
+                    inputs: vec![],
+                    statement: Statement::Query {
+                        filters: vec![Filter::QueryType(QueryType::Node)],
+                    },
+                    output: SetName::default(),
+                }),
+                remove: Box::new(StatementSpec {
+                    inputs: vec![],
+                    statement: Statement::Query {
+                        filters: vec![Filter::QueryType(QueryType::Way)],
+                    },
+                    output: SetName::default(),
+                }),
+            },
+            output: SetName::default(),
+        }]);
+    }
+
+    #[test]
     fn test_item_default() {
         assert_eq!(parse("._;"), vec![StatementSpec {
             inputs: vec![SetName::default()],
