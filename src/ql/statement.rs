@@ -27,15 +27,22 @@ pub enum Statement {
     Query {
         filters: Vec<Filter>,
     },
-    Recurse,
+    Recurse(RecurseType),
     IsInArea,
     Union {
         members: Vec<StatementSpec>,
     },
     /// Source from a set
     Item,
-    /// Output
-    Print,
+    Output,
+}
+
+#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Clone, Copy)]
+pub enum RecurseType {
+    Up,
+    UpRelations,
+    Down,
+    DownRelations,
 }
 
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Clone, Copy)]

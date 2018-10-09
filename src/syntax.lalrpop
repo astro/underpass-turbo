@@ -34,8 +34,27 @@ InputAndStatement: (Vec<SetName>, Statement) = {
         (vec![], Statement::Query { filters })
     },
 
+    "out" =>
+        (vec![SetName::default()], Statement::Output),
+
+    "." <input_set: SetName> "out" =>
+        (vec![input_set], Statement::Output),
+
+    <rt: RecurseType> =>
+        (vec![SetName::default()], Statement::Recurse(rt)),
+
+    "." <input_set: SetName> <rt: RecurseType> =>
+        (vec![input_set], Statement::Recurse(rt)),
+
     "." <input_set: SetName> =>
         (vec![input_set], Statement::Item),
+};
+
+RecurseType: RecurseType = {
+    "<" => RecurseType::Up,
+    "<<" => RecurseType::UpRelations,
+    ">" => RecurseType::Down,
+    ">>" => RecurseType::DownRelations,
 };
 
 QueryType: QueryType = {

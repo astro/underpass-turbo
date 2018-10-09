@@ -11,7 +11,7 @@ pub fn parse(input: &str) -> Vec<StatementSpec> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{SetName, StatementSpec, Statement, Filter, QueryType, TagSpec};
+    use super::super::{SetName, StatementSpec, Statement, RecurseType, Filter, QueryType, TagSpec};
     use super::parse;
 
     #[test]
@@ -33,7 +33,7 @@ mod tests {
     }
 
     #[test]
-    fn test_item_named_source() {
+    fn test_item_named_input() {
         assert_eq!(parse(".test;"), vec![StatementSpec {
             inputs: vec![SetName::from("test".to_string())],
             statement: Statement::Item,
@@ -42,7 +42,7 @@ mod tests {
     }
 
     #[test]
-    fn test_item_named_source_to_dest() {
+    fn test_item_named_input_to_output() {
         assert_eq!(parse(".test -> .new;"), vec![StatementSpec {
             inputs: vec![SetName::from("test".to_string())],
             statement: Statement::Item,
@@ -227,5 +227,74 @@ nwr (5)
                 output: SetName::default(),
             }]
         );
+    }
+
+    #[test]
+    fn test_recurse() {
+        assert_eq!(parse("<; .a <<; > -> .b; .a >> -> .b;"), vec![
+            StatementSpec {
+                inputs: vec![SetName::default()],
+                statement: Statement::Recurse(RecurseType::Up),
+                output: SetName::default(),
+            },
+            StatementSpec {
+                inputs: vec![SetName::from("a".to_string())],
+                statement: Statement::Recurse(RecurseType::UpRelations),
+                output: SetName::default(),
+            },
+            StatementSpec {
+                inputs: vec![SetName::default()],
+                statement: Statement::Recurse(RecurseType::Down),
+                output: SetName::from("b".to_string()),
+            },
+            StatementSpec {
+                inputs: vec![SetName::from("a".to_string())],
+                statement: Statement::Recurse(RecurseType::DownRelations),
+                output: SetName::from("b".to_string()),
+            },
+        ]);
+    }
+
+    #[test]
+    fn test_output() {
+        assert_eq!(parse("out;"), vec![StatementSpec {
+            inputs: vec![SetName::default()],
+            statement: Statement::Output,
+            output: SetName::default(),
+        }]);
+    }
+
+    #[test]
+    fn test_output_named_input() {
+        assert_eq!(parse(".test out;"), vec![StatementSpec {
+            inputs: vec![SetName::from("test".to_string())],
+            statement: Statement::Output,
+            output: SetName::default(),
+        }]);
+    }
+
+    #[test]
+    fn test_output_many_statements() {
+        assert_eq!(parse("node->.m; .m->.n; .n out;"), vec![
+            StatementSpec {
+                inputs: vec![],
+                statement: Statement::Query {
+                    filters: vec![
+                        Filter::QueryType(QueryType::Node),
+                    ],
+                },
+                output: SetName::from("m".to_string()),
+            },
+            StatementSpec {
+                inputs: vec![SetName::from("m".to_string())],
+                statement: Statement::Item,
+                output: SetName::from("n".to_string()),
+            },
+            StatementSpec {
+                inputs: vec![SetName::from("n".to_string())],
+                statement: Statement::Output,
+                output: SetName::default(),
+            },
+        ]);
     }
 }
