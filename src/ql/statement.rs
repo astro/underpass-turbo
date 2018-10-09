@@ -73,6 +73,7 @@ pub enum Filter {
     TagNotExist {
         k: TagSpec,
     },
+    Intersection(SetName),
     // Recurse {
     //     recurse_target: (),
     //     input: SetName,
@@ -82,7 +83,7 @@ pub enum Filter {
 #[derive(Debug, Clone)]
 pub enum TagSpec {
     String(String),
-    Regex(String, Regex),
+    Regex(String, bool, Regex),
 }
 
 impl TagSpec {
@@ -98,12 +99,12 @@ impl TagSpec {
             .ignore_whitespace(true)
             .unicode(true)
             .build().unwrap();
-        TagSpec::Regex(s, regex)
+        TagSpec::Regex(s, case_insensitive, regex)
     }
 
     pub fn test(&self, s: &str) -> bool {
         match self {
-            &TagSpec::Regex(_, ref r) =>
+            &TagSpec::Regex(_, _, ref r) =>
                 r.is_match(s),
             &TagSpec::String(ref ss) =>
                 s == ss,
@@ -116,11 +117,11 @@ impl PartialEq for TagSpec {
         match (self, other) {
             (TagSpec::String(s1), TagSpec::String(s2)) =>
                 s1 == s2,
-            (TagSpec::Regex(s1, _), TagSpec::Regex(s2, _)) =>
+            (TagSpec::Regex(s1, ci1, _), TagSpec::Regex(s2, ci2, _)) =>
+                ci1 == ci2 &&
                 s1 == s2,
             _ =>
                 false,
         }
     }
 }
-

@@ -2,6 +2,7 @@ extern crate osm_pbf_iter;
 extern crate clap;
 extern crate threadpool;
 extern crate regex;
+#[macro_use] extern crate lalrpop_util;
 
 use clap::{Arg, App};
 

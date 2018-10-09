@@ -8,3 +8,7 @@ osm_pbf_iter = { path = "../rust-osm-pbf-iter" } # "~0.1.0"
 clap = "2.20.5"
 threadpool = "1.7"
 regex = "1"
+lalrpop-util = "0"
+
+[build-dependencies]
+lalrpop = "0"

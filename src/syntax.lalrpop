@@ -1,0 +1,93 @@
+use std::str::FromStr;
+use ql::*;
+
+grammar;
+
+pub Script: Vec<StatementSpec> = {
+    <ss: (StatementSpec)+> => ss,
+};
+
+StatementSpec: StatementSpec = {
+    <is: InputAndStatement> "->" "." <output: SetName> ";" =>
+        StatementSpec {
+            inputs: is.0,
+            statement: is.1,
+            output: SetName::from(output),
+        },
+    <is: InputAndStatement> ";" =>
+        StatementSpec {
+            inputs: is.0,
+            statement: is.1,
+            output: SetName::default(),
+        },
+};
+
+InputAndStatement: (Vec<SetName>, Statement) = {
+    "(" <members: (StatementSpec)*> ")" =>
+        (vec![], Statement::Union { members }),
+
+    <qt: QueryType> <extra_filters: (Filter)*> => {
+        let mut filters = vec![
+            Filter::QueryType(qt),
+        ];
+        filters.extend(extra_filters);
+        (vec![], Statement::Query { filters })
+    },
+
+    "." <input_set: SetName> =>
+        (vec![input_set], Statement::Item),
+};
+
+QueryType: QueryType = {
+    "node" => QueryType::Node,
+    "way" => QueryType::Way,
+    "relation" => QueryType::Relation,
+    "derived" => QueryType::Derived,
+    "area" => QueryType::Area,
+    "nwr" => QueryType::NWR,
+};
+
+Filter: Filter = {
+    "(" <id: Id> ")" =>
+        Filter::Id(id),
+    "(" <s: Float> "," <w: Float> "," <n: Float> "," <e: Float> ")" =>
+        Filter::BoundingBox { s, w, n, e },
+    "." <s: SetName> =>
+        Filter::Intersection(s),
+    "[" "!" <k: TagSpec> "]" =>
+        Filter::TagNotExist { k },
+    "[" <k: TagSpec> "]" =>
+        Filter::TagExist { k },
+    "[" <k: TagSpec> "!=" <v: TagSpec> "]" =>
+        Filter::TagNotEqual { k, v },
+    "[" <k: TagSpec> "=" <v: TagSpec> "]" =>
+        Filter::TagEqual { k, v },
+};
+
+TagSpec: TagSpec = {
+    "~" <r: TagSpecString> ",i" =>
+        TagSpec::from_regex(r, true),
+    "~" <r: TagSpecString> =>
+        TagSpec::from_regex(r, false),
+    <s: TagSpecString> =>
+        TagSpec::from_string(s),
+};
+
+TagSpecString: String = {
+    <s: r#""[^"]*""#> => s[1..(s.len() - 1)].to_string(),
+    <s: r#"'[^']*'"#> => s[1..(s.len() - 1)].to_string(),
+    <s: Ident> => s.to_string(),
+};
+
+SetName: SetName = <s: Ident> => SetName::from(s);
+
+Ident: String = <s:r"[_a-zA-Z][_a-zA-Z0-9]*"> => s.to_string();
+
+Id: u64 = <s:r"[0-9]+"> => u64::from_str(s).unwrap();
+
+Float: f64 = {
+    <s: r"-?[0-9]*\.[0-9]*"> =>
+        f64::from_str(s).unwrap(),
+    <i: Id> =>
+        i as f64,
+};

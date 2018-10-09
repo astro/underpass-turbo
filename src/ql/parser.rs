@@ -1,110 +1,17 @@
-use super::tokens::{Token, Tokenizer};
+// TODO: delete; use super::tokens::{Token, Tokenizer};
 use super::{SetName, StatementSpec, Statement, QueryType, Filter};
-
+use super::syntax::ScriptParser;
 
 pub fn parse(input: &str) -> Vec<StatementSpec> {
-    let all_tokens = Tokenizer::new(input)
-        .collect::<Vec<_>>();
-    let mut tokens = &all_tokens[..];
-    let mut results = vec![];
-    while tokens.len() > 0 {
-        let m = parse_statement(tokens);
-        let statement_spec = m.0;
-        tokens = m.1;
-        results.push(statement_spec);
-    }
-    results
+    ScriptParser::new()
+        .parse(input)
+        .unwrap()
 }
-
-fn parse_statement(mut tokens: &[(usize, Token)]) -> (StatementSpec, &[(usize, Token)]) {
-    let mut inputs = vec![];
-    let first_token = tokens.get(0).map(|t| &t.1);
-    let statement = if first_token == Some(&Token::ParenthesisOpen) {
-        tokens = &tokens[1..];
-        let mut members = vec![];
-        while tokens.get(0).map(|t| &t.1) != Some(&Token::ParenthesisClose) {
-            let m = parse_statement(tokens);
-            let statement_spec = m.0;
-            members.push(statement_spec);
-            tokens = m.1;
-            if tokens.len() < 1 {
-                panic!("Unterminated union");
-            }
-        }
-        tokens = &tokens[1..];
-        Statement::Union { members }
-    } else if first_token == Some(&Token::Period) {
-        // All statements that take an input set
-        match tokens.get(1) {
-            Some((_, Token::StringLiteral(ref input))) => {
-                inputs.push(SetName::from(input.to_string()));
-                tokens = &tokens[2..];
-                Statement::Item
-            }
-            Some((ref pos, ref token)) =>
-                panic!("Expected string literal at char {}, found: {:?}", pos, token),
-            None =>
-                panic!("Unexpected end of input after token '.'"),
-        }
-    } else if let Some(Token::StringLiteral(literal)) = first_token {
-        // All statements that begin with a string literal
-        if let Some(qt) = QUERY_TYPES.iter().find(|(ref name, _)| literal == name) {
-            tokens = &tokens[1..];
-            let mut filters = vec![
-                Filter::QueryType(qt.1),
-            ];
-            Statement::Query {
-                filters
-            }
-        } else {
-            panic!("Cannot parse literal {:?}", literal);
-        }
-    } else if let Some((pos, token)) = tokens.get(0) {
-        panic!("Unexpected token at char {}: {:?}", pos, token);
-    } else {
-        panic!("Unexpected end of input");
-    };
-
-    let output = match tokens.get(0..3) {
-        Some([(_, Token::Arrow), (_, Token::Period), (_, Token::StringLiteral(ref output))]) => {
-            tokens = &tokens[3..];
-            SetName::from(output.to_string())
-        }
-        _ => SetName::default(),
-    };
-
-    match tokens.get(0) {
-        Some((_, Token::Semicolon)) =>
-            // ;
-            (),
-        Some((pos, token)) =>
-            panic!("Expected semicolon at char {}, found: {:?}", pos, token),
-        None =>
-            panic!("Unexpected end of input when expecting ';'"),
-    }
-    tokens = &tokens[1..];
-
-    let statement_spec = StatementSpec {
-        inputs,
-        statement,
-        output,
-    };
-    (statement_spec, tokens)
-}
-
-const QUERY_TYPES: &[(&'static str, QueryType)] = &[
-    ("node", QueryType::Node),
-    ("way", QueryType::Way),
-    ("relation", QueryType::Relation),
-    ("derived", QueryType::Derived),
-    ("area", QueryType::Area),
-    ("nwr", QueryType::NWR),
-];
 
 
 #[cfg(test)]
 mod tests {
-    use super::super::{SetName, StatementSpec, Statement, Filter, QueryType};
+    use super::super::{SetName, StatementSpec, Statement, Filter, QueryType, TagSpec};
     use super::parse;
 
     #[test]
@@ -152,5 +59,173 @@ mod tests {
             },
             output: SetName::default(),
         }]);
+    }
+
+    #[test]
+    fn test_query_way_filter_id() {
+        assert_eq!(parse("way(123);"), vec![StatementSpec {
+            inputs: vec![],
+            statement: Statement::Query {
+                filters: vec![
+                    Filter::QueryType(QueryType::Way),
+                    Filter::Id(123),
+                ],
+            },
+            output: SetName::default(),
+        }]);
+    }
+
+    #[test]
+    fn test_query_filter_key_exist_string() {
+        let expected: Vec<StatementSpec> =
+            vec![StatementSpec {
+                inputs: vec![],
+                statement: Statement::Query {
+                    filters: vec![
+                        Filter::QueryType(QueryType::Node),
+                        Filter::TagExist { k: TagSpec::from_string("name") },
+                    ],
+                },
+                output: SetName::default(),
+            }];
+        assert_eq!(parse("node[\"name\"];"), expected);
+        assert_eq!(parse("node['name'];"), expected);
+        assert_eq!(parse("node[name];"), expected);
+    }
+
+    #[test]
+    fn test_query_filter_key_not_exist_string() {
+        let expected: Vec<StatementSpec> =
+            vec![StatementSpec {
+                inputs: vec![],
+                statement: Statement::Query {
+                    filters: vec![
+                        Filter::QueryType(QueryType::Node),
+                        Filter::TagNotExist { k: TagSpec::from_string("name") },
+                    ],
+                },
+                output: SetName::default(),
+            }];
+        assert_eq!(parse("node[!\"name\"];"), expected);
+        assert_eq!(parse("node[! 'name'];"), expected);
+        assert_eq!(parse("node[!name];"), expected);
+    }
+
+    #[test]
+    fn test_query_filter_key_exist_regex() {
+        let expected: Vec<StatementSpec> =
+            vec![StatementSpec {
+                inputs: vec![],
+                statement: Statement::Query {
+                    filters: vec![
+                        Filter::QueryType(QueryType::Node),
+                        Filter::TagExist { k: TagSpec::from_regex("name", false) },
+                    ],
+                },
+                output: SetName::default(),
+            }];
+        assert_eq!(parse("node[~\"name\"];"), expected);
+        assert_eq!(parse("node[~'name'];"), expected);
+        assert_eq!(parse("node[~name];"), expected);
+    }
+
+    #[test]
+    fn test_query_filter_key_not_exist_regex() {
+        let expected: Vec<StatementSpec> =
+            vec![StatementSpec {
+                inputs: vec![],
+                statement: Statement::Query {
+                    filters: vec![
+                        Filter::QueryType(QueryType::Node),
+                        Filter::TagNotExist { k: TagSpec::from_regex("name", false) },
+                    ],
+                },
+                output: SetName::default(),
+            }];
+        assert_eq!(parse("node[! ~ \"name\"];"), expected);
+        assert_eq!(parse("node[!~'name'];"), expected);
+        assert_eq!(parse("node[! ~name];"), expected);
+    }
+
+    #[test]
+    fn test_query_filter_key_exist_regex_case_insensitive() {
+        let expected: Vec<StatementSpec> =
+            vec![StatementSpec {
+                inputs: vec![],
+                statement: Statement::Query {
+                    filters: vec![
+                        Filter::QueryType(QueryType::Node),
+                        Filter::TagExist { k: TagSpec::from_regex("name", true) },
+                    ],
+                },
+                output: SetName::default(),
+            }];
+        assert_eq!(parse("node[~\"name\",i];"), expected);
+        assert_eq!(parse("node[~'name',i];"), expected);
+        assert_eq!(parse("node[~name,i];"), expected);
+    }
+
+    #[test]
+    fn test_query_filter_key_value() {
+        let expected: Vec<StatementSpec> =
+            vec![StatementSpec {
+                inputs: vec![],
+                statement: Statement::Query {
+                    filters: vec![
+                        Filter::QueryType(QueryType::Area),
+                        Filter::TagEqual {
+                            k: TagSpec::from_string("leisure"),
+                            v: TagSpec::from_string("hackerspace"),
+                        },
+                    ],
+                },
+                output: SetName::default(),
+            }];
+        assert_eq!(parse("area[\"leisure\" = \"hackerspace\"];"), expected);
+        assert_eq!(parse("area[ 'leisure' = 'hackerspace' ];"), expected);
+        assert_eq!(parse("area[leisure=hackerspace];"), expected);
+    }
+
+    #[test]
+    fn test_query_filter_many() {
+        assert_eq!(
+            parse(r#"
+nwr (5)
+    [! ~addr,i]
+    (50, 12, 52, 14)
+    [internet_access]
+    [leisure=hackerspace]
+    [amenity=~"workshop",i]
+    ;
+"#),
+            vec![StatementSpec {
+                inputs: vec![],
+                statement: Statement::Query {
+                    filters: vec![
+                        Filter::QueryType(QueryType::NWR),
+                        Filter::Id(5),
+                        Filter::TagNotExist {
+                            k: TagSpec::from_regex("addr".to_string(), true)
+                        },
+                        Filter::BoundingBox {
+                            s: 50.0, w: 12.0,
+                            n: 52.0, e: 14.0,
+                        },
+                        Filter::TagExist {
+                            k: TagSpec::from_string("internet_access".to_string())
+                        },
+                        Filter::TagEqual {
+                            k: TagSpec::from_string("leisure".to_string()),
+                            v: TagSpec::from_string("hackerspace".to_string()),
+                        },
+                        Filter::TagEqual {
+                            k: TagSpec::from_string("amenity".to_string()),
+                            v: TagSpec::from_regex("workshop".to_string(), true),
+                        },
+                    ],
+                },
+                output: SetName::default(),
+            }]
+        );
     }
 }
