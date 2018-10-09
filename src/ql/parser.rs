@@ -131,6 +131,36 @@ mod tests {
     }
 
     #[test]
+    fn test_query_way_filter_intersection() {
+        assert_eq!(parse("node.a;"), vec![StatementSpec {
+            inputs: vec![],
+            statement: Statement::Query {
+                filters: vec![
+                    Filter::QueryType(QueryType::Node),
+                    Filter::Intersection(SetName::from("a".to_string())),
+                ],
+            },
+            output: SetName::default(),
+        }]);
+    }
+
+    #[test]
+    fn test_query_way_filter_multi_intersection() {
+        assert_eq!(parse("node.a.b .c;"), vec![StatementSpec {
+            inputs: vec![],
+            statement: Statement::Query {
+                filters: vec![
+                    Filter::QueryType(QueryType::Node),
+                    Filter::Intersection(SetName::from("a".to_string())),
+                    Filter::Intersection(SetName::from("b".to_string())),
+                    Filter::Intersection(SetName::from("c".to_string())),
+                ],
+            },
+            output: SetName::default(),
+        }]);
+    }
+
+    #[test]
     fn test_query_filter_key_exist_string() {
         let expected: Vec<StatementSpec> =
             vec![StatementSpec {
