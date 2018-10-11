@@ -3,6 +3,7 @@ use super::{SetName, StatementSpec, Statement, QueryType, Filter};
 use super::syntax::ScriptParser;
 
 pub fn parse(input: &str) -> Vec<StatementSpec> {
+    // TODO: propagate input sets across composite statements
     ScriptParser::new()
         .parse(input)
         .unwrap()

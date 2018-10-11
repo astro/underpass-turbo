@@ -7,7 +7,6 @@ extern crate regex;
 use clap::{Arg, App};
 
 mod ql;
-// use ql::parse_ql;
 use ql::{Statement, Filter, TagSpec, QueryType};
 
 mod item;
@@ -17,6 +16,9 @@ use pbf_source::PbfSource;
 mod process;
 use process::Runner;
 mod filter;
+mod trace;
+use trace::trace;
+mod process_node;
 
 fn main() {
     let matches = App::new("Underpass Turbo")
@@ -32,9 +34,12 @@ fn main() {
              .required(true)
              .multiple(true)
         ).get_matches();
-    // let query = matches.value_of("QUERY")
-    //     .expect("Query missing");
-    // println!("parsed query: {:?}", parse_ql(query));
+    let query = matches.value_of("QUERY")
+        .expect("Query missing");
+    let script = ql::parse(query);
+    println!("parsed query: {:?}", script);
+    let script_trace = trace::trace(script.into_iter());
+    println!("traced query: {:?}", script_trace);
 
     let source_paths = matches.values_of_os("PBF")
         .expect("Source paths missing");

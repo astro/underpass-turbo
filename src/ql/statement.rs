@@ -1,6 +1,6 @@
 use regex::{Regex, RegexBuilder};
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct SetName(String);
 
 impl From<String> for SetName {
