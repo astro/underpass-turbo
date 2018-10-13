@@ -20,8 +20,8 @@ where
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct TraceNode {
-    inputs: HashSet<Input>,
-    process_node: ProcessNode,
+    pub input_sets: HashSet<UniqueSet>,
+    pub process_node: ProcessNode,
 }
 
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Clone, Copy)]
@@ -48,15 +48,6 @@ impl UniqueSetGenerator {
             id: self.last,
         }
     }
-}
-
-#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Clone)]
-enum Input {
-    DataSource,
-    // TODO
-    // DataIndex,
-    /// Set by node id
-    Set(UniqueSet),
 }
 
 pub struct Tracer {
@@ -96,17 +87,17 @@ impl Tracer {
         let input_sets = HashSet::from_iter(
             inputs.map(
                 |name| self.get_set(name).clone()
-            ).map(Input::Set)
+            )
         );
         self.add_node_with_inputs(input_sets, process_node, output)
     }
     
-    fn add_node_with_inputs(&mut self, inputs: HashSet<Input>, process_node: ProcessNode, output: SetName) -> UniqueSet {
+    fn add_node_with_inputs(&mut self, input_sets: HashSet<UniqueSet>, process_node: ProcessNode, output: SetName) -> UniqueSet {
         let output_set = self.unique_set_generator.next();
         self.named_sets.insert(output, output_set);
 
         self.nodes.insert(output_set, TraceNode {
-            inputs,
+            input_sets,
             process_node,
         });
 
@@ -121,12 +112,13 @@ fn trace_statement_spec(statement_spec: StatementSpec, tracer: &mut Tracer) -> U
     let output = statement_spec.output;
     match statement {
         Statement::Union { members } => {
-            let inputs = HashSet::from_iter(members.into_iter()
+            // TODO: s/from_iter/collect/
+            let input_sets = HashSet::from_iter(members.into_iter()
                 .map(|member|
                      trace_statement_spec(member, tracer)
-                ).map(Input::Set));
+                ));
             let node = ProcessNode::Union;
-            tracer.add_node_with_inputs(inputs, node, output)
+            tracer.add_node_with_inputs(input_sets, node, output)
         }
         Statement::Difference { source, remove } => {
             let source_input =
@@ -139,8 +131,8 @@ fn trace_statement_spec(statement_spec: StatementSpec, tracer: &mut Tracer) -> U
             };
             tracer.add_node_with_inputs(
                 HashSet::from_iter([
-                    Input::Set(source_input),
-                    Input::Set(remove_input)
+                    source_input,
+                    remove_input,
                 ].iter().cloned()),
                 node, output)
         }
@@ -150,14 +142,12 @@ fn trace_statement_spec(statement_spec: StatementSpec, tracer: &mut Tracer) -> U
         }
         Statement::Recurse(rt) => {
             let node = ProcessNode::Recurse(rt);
-            let mut inputs = HashSet::from_iter(
+            let mut input_sets = HashSet::from_iter(
                 statement_inputs.iter().map(
                     |name| tracer.get_set(name)
                 ).cloned()
-                    .map(Input::Set)
             );
-            inputs.insert(Input::DataSource);
-            tracer.add_node_with_inputs(inputs, node, output)
+            tracer.add_node_with_inputs(input_sets, node, output)
         }
         Statement::Item => {
             if statement_inputs.len() != 1 {
@@ -204,7 +194,7 @@ mod tests {
         assert_eq!(output_nodes.len(), 1);
         let output_inputs = &output_nodes[0].1.inputs;
         let query_nodes = nodes.iter()
-            .filter(|(output, _)| output_inputs.contains(&Input::Set(**output)))
+            .filter(|(output, _)| output_inputs.contains(*output))
             .collect::<Vec<_>>();
         assert_eq!(query_nodes.len(), 1);
         assert_eq!(query_nodes[0].1.process_node, ProcessNode::Query { filters: vec![] });

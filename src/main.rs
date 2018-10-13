@@ -19,6 +19,8 @@ mod filter;
 mod trace;
 use trace::trace;
 mod process_node;
+mod planner;
+use planner::plan;
 
 fn main() {
     let matches = App::new("Underpass Turbo")
@@ -40,6 +42,7 @@ fn main() {
     println!("parsed query: {:?}", script);
     let script_trace = trace::trace(script.into_iter());
     println!("traced query: {:?}", script_trace);
+    plan(&script_trace);
 
     let source_paths = matches.values_of_os("PBF")
         .expect("Source paths missing");
