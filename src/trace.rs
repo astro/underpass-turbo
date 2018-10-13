@@ -83,12 +83,9 @@ impl Tracer {
     where
         I: Iterator<Item=&'a SetName>,
     {
-        // TODO: s/from_iter/collect/
-        let input_sets = HashSet::from_iter(
-            inputs.map(
-                |name| self.get_set(name).clone()
-            )
-        );
+        let input_sets = inputs.map(
+            |name| self.get_set(name).clone()
+        ).collect();
         self.add_node_with_inputs(input_sets, process_node, output)
     }
     
@@ -112,11 +109,10 @@ fn trace_statement_spec(statement_spec: StatementSpec, tracer: &mut Tracer) -> U
     let output = statement_spec.output;
     match statement {
         Statement::Union { members } => {
-            // TODO: s/from_iter/collect/
-            let input_sets = HashSet::from_iter(members.into_iter()
+            let input_sets = members.into_iter()
                 .map(|member|
                      trace_statement_spec(member, tracer)
-                ));
+                ).collect();
             let node = ProcessNode::Union;
             tracer.add_node_with_inputs(input_sets, node, output)
         }
