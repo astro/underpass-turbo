@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use osm_pbf_iter::{Blob, BlobReader, Primitive};
 
+#[derive(Debug, Clone)]
 pub struct PbfSource {
     paths: Vec<Arc<PathBuf>>,
 }

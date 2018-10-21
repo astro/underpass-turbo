@@ -3,11 +3,12 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use ql::{SetName, StatementSpec, Statement};
-use process_node::ProcessNode;
+use trace_node::{Trace, TraceNode, UniqueSet};
+use process_node::Process;
 
 /// Execute a query script to establish a graph representation of the
 /// data flow.
-pub fn trace<I>(statement_specs: I) -> HashMap<UniqueSet, TraceNode>
+pub fn trace<I>(statement_specs: I) -> Trace
 where
     I: Iterator<Item=StatementSpec>,
 {
@@ -15,18 +16,7 @@ where
     for statement_spec in statement_specs {
         trace_statement_spec(statement_spec, &mut tracer);
     }
-    tracer.nodes
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct TraceNode {
-    pub input_sets: HashSet<UniqueSet>,
-    pub process_node: ProcessNode,
-}
-
-#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Clone, Copy)]
-pub struct UniqueSet {
-    id: u32,
+    Trace::new(tracer.nodes)
 }
 
 /// Because sets can be overwritten by name, we assign unique ids to
@@ -44,9 +34,7 @@ impl UniqueSetGenerator {
 
     fn next(&mut self) -> UniqueSet {
         self.last += 1;
-        UniqueSet {
-            id: self.last,
-        }
+        UniqueSet::new(self.last)
     }
 }
 
@@ -79,23 +67,23 @@ impl Tracer {
         self.named_sets.insert(output_set, input_set);
     }
 
-    pub fn add_node<'a, I>(&mut self, inputs: I, process_node: ProcessNode, output: SetName) -> UniqueSet
+    pub fn add_node<'a, I>(&mut self, inputs: I, process: Process, output: SetName) -> UniqueSet
     where
         I: Iterator<Item=&'a SetName>,
     {
         let input_sets = inputs.map(
             |name| self.get_set(name).clone()
         ).collect();
-        self.add_node_with_inputs(input_sets, process_node, output)
+        self.add_node_with_sets(input_sets, process, output)
     }
-    
-    fn add_node_with_inputs(&mut self, input_sets: HashSet<UniqueSet>, process_node: ProcessNode, output: SetName) -> UniqueSet {
+
+    fn add_node_with_sets(&mut self, input_sets: HashSet<UniqueSet>, process: Process, output: SetName) -> UniqueSet {
         let output_set = self.unique_set_generator.next();
         self.named_sets.insert(output, output_set);
 
         self.nodes.insert(output_set, TraceNode {
             input_sets,
-            process_node,
+            process,
         });
 
         output_set
@@ -113,19 +101,19 @@ fn trace_statement_spec(statement_spec: StatementSpec, tracer: &mut Tracer) -> U
                 .map(|member|
                      trace_statement_spec(member, tracer)
                 ).collect();
-            let node = ProcessNode::Union;
-            tracer.add_node_with_inputs(input_sets, node, output)
+            let node = Process::Union;
+            tracer.add_node_with_sets(input_sets, node, output)
         }
         Statement::Difference { source, remove } => {
             let source_input =
                 trace_statement_spec(*source, tracer);
             let remove_input =
                 trace_statement_spec(*remove, tracer);
-            let node = ProcessNode::Difference {
+            let node = Process::Difference {
                 source: source_input,
                 remove: remove_input,
             };
-            tracer.add_node_with_inputs(
+            tracer.add_node_with_sets(
                 HashSet::from_iter([
                     source_input,
                     remove_input,
@@ -133,17 +121,17 @@ fn trace_statement_spec(statement_spec: StatementSpec, tracer: &mut Tracer) -> U
                 node, output)
         }
         Statement::Query { filters } => {
-            let node = ProcessNode::Query { filters };
-            tracer.add_node(statement_inputs.iter(), node, output)
+            let node = Process::Query { filters };
+            let input_sets = HashSet::new();
+            tracer.add_node_with_sets(input_sets, node, output)
         }
         Statement::Recurse(rt) => {
-            let node = ProcessNode::Recurse(rt);
-            let mut input_sets = HashSet::from_iter(
-                statement_inputs.iter().map(
-                    |name| tracer.get_set(name)
-                ).cloned()
-            );
-            tracer.add_node_with_inputs(input_sets, node, output)
+            let node = Process::Recurse(rt);
+            let input_sets = statement_inputs.iter()
+                .map(|name| tracer.get_set(name))
+                .cloned()
+                .collect::<HashSet<_>>();
+            tracer.add_node_with_sets(input_sets, node, output)
         }
         Statement::Item => {
             if statement_inputs.len() != 1 {
@@ -156,7 +144,7 @@ fn trace_statement_spec(statement_spec: StatementSpec, tracer: &mut Tracer) -> U
             input_set
         }
         Statement::Output => {
-            let node = ProcessNode::Output;
+            let node = Process::Output;
             tracer.add_node(statement_inputs.iter(), node, output)
         }
         _ =>
@@ -167,7 +155,7 @@ fn trace_statement_spec(statement_spec: StatementSpec, tracer: &mut Tracer) -> U
 
 #[cfg(test)]
 mod tests {
-    use super::{Input, SetName, StatementSpec, Statement, ProcessNode};
+    use super::{Input, SetName, StatementSpec, Statement, Process};
     use super::{trace, TraceNode};
 
     #[test]
@@ -185,7 +173,7 @@ mod tests {
             },
         ].into_iter().cloned());
         let output_nodes = nodes.iter()
-            .filter(|(_, node)| node.process_node == ProcessNode::Output)
+            .filter(|(_, node)| node.process == Process::Output)
             .collect::<Vec<_>>();
         assert_eq!(output_nodes.len(), 1);
         let output_inputs = &output_nodes[0].1.inputs;
@@ -193,6 +181,6 @@ mod tests {
             .filter(|(output, _)| output_inputs.contains(*output))
             .collect::<Vec<_>>();
         assert_eq!(query_nodes.len(), 1);
-        assert_eq!(query_nodes[0].1.process_node, ProcessNode::Query { filters: vec![] });
+        assert_eq!(query_nodes[0].1.process, Process::Query { filters: vec![] });
     }
 }

@@ -18,9 +18,11 @@ use process::Runner;
 mod filter;
 mod trace;
 use trace::trace;
+mod trace_node;
 mod process_node;
 mod planner;
 use planner::plan;
+mod query;
 
 fn main() {
     let matches = App::new("Underpass Turbo")
@@ -67,6 +69,6 @@ fn main() {
             }
         ],
     };
-    let r = runner.run_all(statement);
-    println!("{:?}", r);
+    // let r = runner.run_all(statement);
+    // println!("{:?}", r);
 }

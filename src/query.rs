@@ -8,7 +8,7 @@ use osm_pbf_iter::{Primitive, PrimitiveBlock, Blob};
 use item::Item;
 use set::Set;
 use pbf_source::PbfSource;
-use ql::{Statement, Filter, TagSpec, QueryType};
+use ql::{Statement, Filter, TagSpec, RecurseType, QueryType};
 use filter::eval_filter;
 use trace_node::UniqueSet;
 use process_node::ProcessNode;
@@ -19,18 +19,18 @@ enum Task {
 }
 unsafe impl Send for Task {}
 
-pub struct Runner {
+pub struct QueryRunner {
     source: PbfSource,
     pool: ThreadPool,
 }
 
-impl Runner {
+impl QueryRunner {
     pub fn new(source: PbfSource) -> Self {
         let pool = threadpool::Builder::new().build();
-        Runner { source, pool }
+        QueryRunner { source, pool }
     }
 
-    // pub fn run_all(&self, processor_factories: &[ProcessorFactory]) -> Set {
+    // pub fn run_all(&self, processor_factories: &[QueryTarget]) -> Set {
     //     self.run(
     //         self.source.all()
     //             // TODO: don't drop path+offset
@@ -123,46 +123,9 @@ impl Runner {
     // }
 }
 
-#[derive(Debug, Clone)]
-pub struct ProcessorFactory {
-    output: UniqueSet,
-    node: ProcessNode,
-    next_steps: Vec<ProcessorFactory>,
-}
-
-impl ProcessorFactory {
-    pub fn from_process_node(output: UniqueSet, node: ProcessNode) -> Self {
-        ProcessorFactory {
-            output,
-            node,
-            next_steps: vec![],
-        }
-    }
-
-    pub fn add_next_step(&mut self, next: ProcessorFactory) {
-        self.next_steps.push(next);
-    }
-    
-    pub fn generate(&self) -> Processor {
-        Processor {}
-    }
-}
-
-pub struct Processor {
-}
-
-impl Processor {
-    pub fn process(&mut self, item: Item) {
-        // let is_match = self.filters.iter()
-        //     .all(|filter| eval_filter(filter, &item));
-        // if is_match {
-        //     self.results.insert(item);
-        // }
-    }
-
-    pub fn digest(self) -> Set {
-        // TODO:
-        // self.results
-        Set::empty()
-    }
+pub enum QueryTarget {
+    Query {
+        filters: Arc<Vec<Filter>>,
+    },
+    Recurse(RecurseType),
 }
